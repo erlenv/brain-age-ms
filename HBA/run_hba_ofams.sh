@@ -1,55 +1,59 @@
 #!/bin/bash
-#############################################
-### HBA BRAIN AGE PREDICTION - OFAMS DATA
-### Bruker hemispheric brain age (HBA) modell
-### Input: FreeSurfer stats fra lesjon-fylte bilder
-#############################################
+# ==============================================================================
+# run_hba_ofams.sh
+#
+# Runs the Hemispheric Brain Age (HBA) model on OFAMS FreeSurfer statistics.
+#
+# HBA estimates brain age separately for the left hemisphere, right hemisphere,
+# or both combined, using a GAM model trained on cortical thickness features.
+# Input statistics are derived from T1w images processed through
+# FreeSurfer with the Desikan-Killiany atlas.
+#
+# Expected input:
+#   A CSV file containing FreeSurfer cortical and subcortical statistics,
+#   formatted to match the HBA model's expected feature set.
+#
+# Output:
+#   OUT_ROOT/<proc>_predictions.csv
+#     Predicted brain age per subject with bias-corrected estimates.
+#
+# Usage:   ./run_hba_ofams.sh
+#
+# To run all three hemisphere models in one pass, uncomment the loop
+# at the bottom of this script.
+# ==============================================================================
 
-set -e  # Stopp ved feil
+set -e
 
-# ── PATHS ────────────────────────────────────────────────────────────────────
+# ── Paths ─────────────────────────────────────────────────────────────────────
 REPO="$HOME/Master/models/HBA_models"
-
-# Input data (fra veileder, lesjon-fylte volumer)
 INPUT_CSV="/hus/home/erlvei/Master/data/HBA/hba_stats(in).csv"
-
-# Output mappe
 OUT_ROOT="/hus/home/erlvei/Master/results/HBA"
 mkdir -p "$OUT_ROOT"
 
-# ── MODELL VALG ──────────────────────────────────────────────────────────────
-# Velg hvilken modell du vil kjøre:
-#   sim_model.rda         → begge hemisfærer (bias_correction_params_both.csv)
-#   Lsim_model.rda        → venstre hemisfære (bias_correction_params_left.csv)
-#   Rsim_model.rda        → høyre hemisfære   (bias_correction_params_right.csv)
+# ── Model selection ───────────────────────────────────────────────────────────
+# Choose which hemisphere model to run:
+#   sim_model.rda   → both hemispheres  (bias_correction_params_both.csv)
+#   Lsim_model.rda  → left hemisphere   (bias_correction_params_left.csv)
+#   Rsim_model.rda  → right hemisphere  (bias_correction_params_right.csv)
 
 MODEL_RDA="$REPO/sim_model.rda"
 BIAS_PARAMS="$REPO/bias_correction_params_both.csv"
 PROC="ofams"
 
-# ── VALIDER AT FILER FINNES ──────────────────────────────────────────────────
-echo "Sjekker at nødvendige filer finnes..."
+# ── Validate required files ───────────────────────────────────────────────────
+echo "Checking required files..."
 
-if [ ! -f "$INPUT_CSV" ]; then
-    echo "FEIL: Finner ikke input CSV: $INPUT_CSV"
-    exit 1
-fi
+[[ -f "$INPUT_CSV"   ]] || { echo "ERROR: Input CSV not found: $INPUT_CSV";      exit 1; }
+[[ -f "$MODEL_RDA"   ]] || { echo "ERROR: Model file not found: $MODEL_RDA";     exit 1; }
+[[ -f "$BIAS_PARAMS" ]] || { echo "ERROR: Bias params not found: $BIAS_PARAMS";  exit 1; }
 
-if [ ! -f "$MODEL_RDA" ]; then
-    echo "FEIL: Finner ikke modell: $MODEL_RDA"
-    exit 1
-fi
-
-if [ ! -f "$BIAS_PARAMS" ]; then
-    echo "FEIL: Finner ikke bias correction params: $BIAS_PARAMS"
-    exit 1
-fi
-
-echo "Alle filer funnet."
+echo "All files found."
 echo ""
 
-# ── KJØR HBA PREDIKSJON ──────────────────────────────────────────────────────
-echo "Kjører HBA prediksjon med modell: $(basename $MODEL_RDA)"
+# ── Run HBA prediction ────────────────────────────────────────────────────────
+echo "Running HBA prediction"
+echo "  Model:       $(basename "$MODEL_RDA")"
 echo "  Input:       $INPUT_CSV"
 echo "  Output:      $OUT_ROOT/${PROC}_predictions.csv"
 echo "  Bias params: $BIAS_PARAMS"
@@ -62,12 +66,12 @@ Rscript "$REPO/predict.R" \
     "$BIAS_PARAMS"
 
 echo ""
-echo "Prediksjon fullført!"
-echo "Resultater lagret i: $OUT_ROOT/${PROC}_predictions.csv"
+echo "Prediction complete. Results saved to: $OUT_ROOT/${PROC}_predictions.csv"
 echo ""
 
-# ── VALGFRITT: KJØR ALLE TRE MODELLER ───────────────────────────────────────
-# Fjern kommentar (#) under for å kjøre alle tre modeller i én omgang:
+# ── Optional: run all three hemisphere models ─────────────────────────────────
+# Uncomment the block below to run left, right, and both hemisphere models
+# in a single pass.
 
 # for HEMI in both left right; do
 #     if   [ "$HEMI" = "both"  ]; then MODEL="sim_model.rda";  BIAS="bias_correction_params_both.csv"
@@ -75,13 +79,13 @@ echo ""
 #     elif [ "$HEMI" = "right" ]; then MODEL="Rsim_model.rda"; BIAS="bias_correction_params_right.csv"
 #     fi
 #
-#     echo "Kjører modell: $MODEL"
+#     echo "Running model: $MODEL"
 #     Rscript "$REPO/predict.R" \
 #         "$INPUT_CSV" \
 #         "$OUT_ROOT/ofams_${HEMI}_predictions.csv" \
 #         "$REPO/$MODEL" \
 #         "$REPO/$BIAS"
-#     echo "Ferdig: ofams_${HEMI}_predictions.csv"
+#     echo "Done: ofams_${HEMI}_predictions.csv"
 # done
 
-echo "HBA pipeline fullført!"
+echo "HBA pipeline complete."

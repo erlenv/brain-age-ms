@@ -1,5 +1,38 @@
 #!/usr/bin/env bash
 set -eo pipefail
+# ==============================================================================
+# run_pyment_hcp.sh
+#
+# Batch pipeline for running pyment brain age prediction on HCP structural MRI.
+#
+# For each subject, the script:
+#   1. Locates the T1w_acpc_dc.nii.gz input image
+#   2. Runs FreeSurfer/FSL preprocessing to produce a cropped image
+#   3. Runs pyment (RegressionSFCN) to predict brain age
+#   4. Appends results to a single merged CSV file
+#
+# Subjects already present in the results CSV are skipped, allowing safe
+# re-runs after partial failures.
+#
+# Expected input structure:
+#   INPUT_DIR/
+#     <SUBJECT_ID>_StructuralRecommended/
+#       <SUBJECT_ID>/
+#         T1w/
+#           T1w_acpc_dc.nii.gz
+#
+# Output:
+#   RESULTS_DIR/pyment_predictions.csv
+#     Columns: subject_id, predicted_age, model, weights,
+#              input_file, status, timestamp
+#
+# Dependencies:
+#   - FreeSurfer (recon-all, mri_convert)
+#   - FSL (flirt, fslreorient2std)
+#   - conda environment 'pyment' with pyment, nibabel, torch
+#
+# Usage:   ./run_pyment_hcp.sh
+# ==============================================================================
 
 #############################
 # CONFIG
@@ -19,12 +52,16 @@ FREESURFER_HOME="/home/erleveie/freesurfer"
 FSLDIR_DEFAULT="/home/erleveie/fsl"
 FSL_TEMPLATE="$FSLDIR_DEFAULT/data/standard/MNI152_T1_1mm_brain.nii.gz"
 
+# pyment model configuration
 MODEL_TYPE="RegressionSFCN"
 WEIGHTS="brain-age-2022"
 PRED_RANGE_MIN=3
 PRED_RANGE_MAX=95
 
+# Maximum number of subjects to process in parallel
 MAX_PARALLEL=4
+
+# Set to true to skip subjects already present in the results CSV
 SKIP_EXISTING=true
 
 #############################
@@ -35,6 +72,7 @@ mkdir -p "$OUTPUT_DIR" "$RESULTS_DIR" "$LOG_DIR"
 RESULTS_CSV="$RESULTS_DIR/pyment_predictions.csv"
 PROGRESS_FILE="$RESULTS_DIR/progress.txt"
 
+# Initialize results CSV with header if it does not already exist
 if [[ ! -f "$RESULTS_CSV" ]]; then
     echo "subject_id,predicted_age,model,weights,input_file,status,timestamp" > "$RESULTS_CSV"
 fi
@@ -58,31 +96,28 @@ echo ""
 # CHECKS
 #############################
 
-[[ -d "$INPUT_DIR" ]] || { echo "ERROR: Input directory not found: $INPUT_DIR"; exit 1; }
+# Verify all required paths and executables before starting
+[[ -d "$INPUT_DIR" ]]     || { echo "ERROR: Input directory not found: $INPUT_DIR"; exit 1; }
 [[ -f "$PREPROCESS_SCRIPT" ]] || { echo "ERROR: Preprocessing script not found: $PREPROCESS_SCRIPT"; exit 1; }
-[[ -f "$CONDA_SH" ]] || { echo "ERROR: conda.sh not found: $CONDA_SH"; exit 1; }
-[[ -f "$FSL_TEMPLATE" ]] || { echo "ERROR: FSL template not found: $FSL_TEMPLATE"; exit 1; }
-[[ -f "$FREESURFER_HOME/SetUpFreeSurfer.sh" ]] || { echo "ERROR: FreeSurfer setup not found: $FREESURFER_HOME/SetUpFreeSurfer.sh"; exit 1; }
+[[ -f "$CONDA_SH" ]]      || { echo "ERROR: conda.sh not found: $CONDA_SH"; exit 1; }
+[[ -f "$FSL_TEMPLATE" ]]  || { echo "ERROR: FSL template not found: $FSL_TEMPLATE"; exit 1; }
+[[ -f "$FREESURFER_HOME/SetUpFreeSurfer.sh" ]] || { echo "ERROR: FreeSurfer setup not found"; exit 1; }
 
-# Source FreeSurfer
-#export FREESURFER_HOME="$FREESURFER_HOME"
-#source "$FREESURFER_HOME/SetUpFreeSurfer.sh" >/dev/null 2>&1 || true
-
-# Source FSL
+# Source FSL environment
 export FSLDIR="$FSLDIR_DEFAULT"
 # shellcheck disable=SC1091
 source "$FSLDIR/etc/fslconf/fsl.sh"
 
-command -v recon-all >/dev/null 2>&1 || { echo "ERROR: recon-all not found"; exit 1; }
-command -v mri_convert >/dev/null 2>&1 || { echo "ERROR: mri_convert not found"; exit 1; }
-command -v flirt >/dev/null 2>&1 || { echo "ERROR: flirt not found"; exit 1; }
-command -v fslreorient2std >/dev/null 2>&1 || { echo "ERROR: fslreorient2std not found"; exit 1; }
+# Verify FreeSurfer and FSL tools are available on PATH
+command -v recon-all        >/dev/null 2>&1 || { echo "ERROR: recon-all not found";        exit 1; }
+command -v mri_convert      >/dev/null 2>&1 || { echo "ERROR: mri_convert not found";      exit 1; }
+command -v flirt            >/dev/null 2>&1 || { echo "ERROR: flirt not found";            exit 1; }
+command -v fslreorient2std  >/dev/null 2>&1 || { echo "ERROR: fslreorient2std not found";  exit 1; }
 
-# Activate conda
+# Activate conda environment and verify Python dependencies
 # shellcheck disable=SC1091
 source "$CONDA_SH"
 conda activate "$CONDA_ENV"
-
 python -c "import pyment, nibabel, torch; print('Python env OK')" >/dev/null
 
 echo "All prerequisite checks passed."
@@ -92,6 +127,7 @@ echo ""
 # HELPERS
 #############################
 
+# Return the expected T1w path for a subject, or empty string if not found
 find_input_file() {
     local subject_id="$1"
     local candidate="$INPUT_DIR/${subject_id}_StructuralRecommended/${subject_id}/T1w/T1w_acpc_dc.nii.gz"
@@ -100,11 +136,13 @@ find_input_file() {
     return 1
 }
 
+# Return 0 if subject already has an entry in the results CSV
 already_done() {
     local subject_id="$1"
     grep -q "^${subject_id}," "$RESULTS_CSV" 2>/dev/null
 }
 
+# Return 0 if FreeSurfer/FSL preprocessing has already completed
 preprocessing_done() {
     local subject_dir="$1"
     [[ -f "$subject_dir/mri/cropped.nii.gz" ]]
@@ -125,23 +163,22 @@ process_subject() {
         echo "Started: $(date -Iseconds)"
         echo "========================================"
 
+        # Locate input file
         local input_file
         input_file="$(find_input_file "$subject_id" || true)"
-
         if [[ -z "$input_file" ]]; then
             echo "ERROR: Input file not found for subject $subject_id"
             echo "$subject_id,NA,$MODEL_TYPE,$WEIGHTS,not_found,file_not_found,$(date -Iseconds)" >> "$RESULTS_CSV"
             return 1
         fi
-
         echo "Input: $input_file"
 
+        # Run preprocessing if cropped image not already present
         if preprocessing_done "$subject_dir"; then
             echo "Preprocessing already exists, skipping."
         else
             echo "Running preprocessing..."
             rm -rf "$subject_dir"
-
             if bash "$PREPROCESS_SCRIPT" \
                 --filename "$input_file" \
                 --destination "$subject_dir" \
@@ -155,15 +192,14 @@ process_subject() {
         fi
 
         local cropped_img="$subject_dir/mri/cropped.nii.gz"
-
         if [[ ! -f "$cropped_img" ]]; then
             echo "ERROR: Cropped image missing after preprocessing: $cropped_img"
             echo "$subject_id,NA,$MODEL_TYPE,$WEIGHTS,$input_file,cropped_missing,$(date -Iseconds)" >> "$RESULTS_CSV"
             return 1
         fi
 
+        # Run pyment brain age prediction via inline Python
         echo "Running brain age prediction..."
-
         python - <<EOF
 import os, sys
 import nibabel as nib
@@ -172,17 +208,16 @@ import numpy as np
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 from pyment.models import ${MODEL_TYPE}
 
-subject_id = "${subject_id}"
-input_file = r"${input_file}"
+subject_id  = "${subject_id}"
+input_file  = r"${input_file}"
 cropped_img = r"${cropped_img}"
 results_csv = r"${RESULTS_CSV}"
 
 try:
     model = ${MODEL_TYPE}(weights="${WEIGHTS}", prediction_range=(${PRED_RANGE_MIN}, ${PRED_RANGE_MAX}))
-    img = nib.load(cropped_img).get_fdata().astype(np.float32)
-    img = np.expand_dims(img, axis=(0, -1))
-    pred = model.predict(img, verbose=0)[0]
-    pred = float(np.clip(pred, ${PRED_RANGE_MIN}, ${PRED_RANGE_MAX}))
+    img   = nib.load(cropped_img).get_fdata().astype(np.float32)
+    img   = np.expand_dims(img, axis=(0, -1))
+    pred  = float(np.clip(model.predict(img, verbose=0)[0], ${PRED_RANGE_MIN}, ${PRED_RANGE_MAX}))
 
     with open(results_csv, "a") as f:
         f.write(f"{subject_id},{pred:.2f},${MODEL_TYPE},${WEIGHTS},{input_file},success,$(date -Iseconds)\\n")
@@ -209,10 +244,8 @@ EOF
     } > >(tee -a "$log_file") 2>&1
 }
 
-export -f process_subject
-export -f find_input_file
-export -f already_done
-export -f preprocessing_done
+# Export functions and variables for use in parallel subshells
+export -f process_subject find_input_file already_done preprocessing_done
 export INPUT_DIR OUTPUT_DIR RESULTS_CSV LOG_DIR PREPROCESS_SCRIPT FSL_TEMPLATE
 export MODEL_TYPE WEIGHTS PRED_RANGE_MIN PRED_RANGE_MAX PROGRESS_FILE
 
@@ -231,10 +264,10 @@ if [[ ${#subject_dirs[@]} -eq 0 ]]; then
     exit 1
 fi
 
+# Extract subject IDs by stripping the _StructuralRecommended suffix
 subject_ids=()
 for folder in "${subject_dirs[@]}"; do
-    subject_id="${folder%_StructuralRecommended}"
-    subject_ids+=("$subject_id")
+    subject_ids+=("${folder%_StructuralRecommended}")
 done
 
 echo "Found ${#subject_ids[@]} candidate subjects."
@@ -244,6 +277,7 @@ echo ""
 # FILTER
 #############################
 
+# Skip subjects already present in the results CSV
 subjects_to_process=()
 for subject_id in "${subject_ids[@]}"; do
     if [[ "$SKIP_EXISTING" == true ]] && already_done "$subject_id"; then
@@ -279,15 +313,14 @@ echo "======================================="
 
 total=$(wc -l < "$RESULTS_CSV")
 ((total--)) || true
-
 successful=$(grep -c ",success," "$RESULTS_CSV" 2>/dev/null || echo 0)
 failed=$((total - successful))
 
-echo "Total rows in CSV: $total"
-echo "Successful:        $successful"
-echo "Failed:            $failed"
+echo "Total rows in CSV:  $total"
+echo "Successful:         $successful"
+echo "Failed:             $failed"
 echo ""
-echo "Results CSV:       $RESULTS_CSV"
-echo "Logs:              $LOG_DIR"
+echo "Results CSV:        $RESULTS_CSV"
+echo "Logs:               $LOG_DIR"
 echo ""
 tail -n 20 "$RESULTS_CSV" | column -t -s ','
