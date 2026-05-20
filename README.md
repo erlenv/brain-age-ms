@@ -49,7 +49,9 @@ brain-age-ms/
 │   ├── run_hba_hcp.sh                # HBA prediction on HCP data
 │   └── run_hba_ofams.sh              # HBA prediction on OFAMS data
 │
+├── requirements.txt                  # Python dependencies
 └── README.md
+
 ```
 
 
@@ -110,19 +112,29 @@ of the relevant shell scripts accordingly.
 | HBA | https://github.com/MaxKorbmacher/HBA |
 
 ### 3. Run preprocessing and prediction
-Each shell script contains a `CONFIG` section at the top where input
-and output paths must be set before running.
+Each shell script must be placed inside the corresponding model repository
+before running, as they depend on the model's internal scripts and directory
+structure.
+
+| Script | Place inside |
+|--------|-------------|
+| `run_pyment_hcp.sh` | `pyment-public/` |
+| `run_pyment_ofams.sh` | `pyment-public/` |
+| `run_brainageR_hcp.sh` | `brainageR/` |
+| `run_brainageR_ofams.sh` | `brainageR/` |
+| `run_fastsurfer_hcp.sh` | anywhere with Docker access |
+| `run_hba_hcp.sh` | `HBA/` |
+| `run_hba_ofams.sh` | `HBA/` |
+
+Each script contains a `CONFIG` section at the top where input and output
+paths must be updated before running.
 
 ```bash
 # Example: run pyment on HCP data
-bash pyment/run_pyment_hcp.sh
+bash run_pyment_hcp.sh
 
 # Example: run brainageR on OFAMS data
-bash brainageR/run_brainageR_ofams.sh
-
-# Example: run HBA on HCP data (requires FastSurfer first)
-bash HBA/run_fastsurfer_hcp.sh
-bash HBA/run_hba_hcp.sh
+bash run_brainageR_ofams.sh
 ```
 
 ### 4. Run analysis notebooks
