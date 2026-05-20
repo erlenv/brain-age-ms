@@ -49,7 +49,9 @@ brain-age-ms/
 │   ├── run_hba_hcp.sh                # HBA prediction on HCP data
 │   └── run_hba_ofams.sh              # HBA prediction on OFAMS data
 │
+├── requirements.txt                  # Python dependencies
 └── README.md
+
 ```
 
 
