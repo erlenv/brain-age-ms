@@ -22,6 +22,7 @@ analyses.
 - [Requirements](#requirements)
 - [Usage](#usage)
 - [Model Repositories](#model-repositories)
+- [HCP Young Adults](#hcp-young-adults)
 
 ---
 
@@ -152,7 +153,24 @@ top of each notebook to match your local directory structure.
   https://github.com/james-cole/brainageR
 - **HBA** — Korbmacher et al. (2024):
   https://github.com/MaxKorbmacher/HBA
+---
+## HCP Young Adults
 
+The HCP YA dataset is available through [BALSA](https://balsa.wustl.edu/project?project=HCP_YA)
+(ConnectomeDB powered by BALSA).
+
+**To access the data:**
+1. Register for an account at [balsa.wustl.edu](https://balsa.wustl.edu) (institutional email recommended)
+2. Click the *ConnectomeDB* tab, then *Data Use Terms* under HCP-Young Adult 2025
+3. Read and agree to the WU-Minn HCP Open Access Data Use Terms
+4. Download data
+
+**Restricted Access (chronological age):**  
+Exact age is not included in the Open Access dataset to protect subject privacy.
+Restricted Access must be applied for separately through BALSA and requires institutional approval.
+
+> **Note:** This project used 100 unrelated subjects from the HCP-YA 2025 release.
+> Input file used per subject: `T1w_acpc_dc.nii.gz`
 ---
 
 ## Contact
