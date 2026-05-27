@@ -31,30 +31,37 @@ analyses.
 brain-age-ms/
 │
 ├── notebooks/
-│   ├── 00_calculate_age.ipynb        # Age calculation for longitudinal data
-│   ├── 01_data_processing.ipynb      # Data loading, cleaning, master dataframes
-│   ├── 02_accuracy.ipynb             # Model accuracy and bias analyses
-│   ├── 03_clinical_analyses.ipynb    # Clinical correlations (EDSS, fatigue, DD)
-│   └── 04_longitudinal_analyses.ipynb # Longitudinal trajectories and prognostic analyses
+│   ├── 00_calculate_age.ipynb         # Age calculation for longitudinal data
+│   ├── 01_data_processing.ipynb       # Data loading, cleaning, master dataframes
+│   ├── 02_accuracy.ipynb              # Model accuracy and bias analyses
+│   ├── 03_clinical_analyses.ipynb     # Clinical correlations (EDSS, fatigue, DD)
+│   ├── 04_longitudinal_analyses.ipynb # Longitudinal trajectories and prognostic analyses
+│   └── 05_hcp.ipynb                   # Model validation on HCP Young Adults data
+│
+├── predictions/
+│   ├── pyment_hcp.csv                 # Pyment predictions on HCP data
+│   ├── pyment_predictions_run2.csv    # Pyment predictions on OFAMS data
+│   ├── brainageR_hcp.csv              # BrainageR predictions on HCP data
+│   ├── brainageR_predictions_run2.csv # BrainageR predictions on OFAMS data
+│   ├── hba_hcp.csv                    # HBA predictions on HCP data
+│   └── hba_ofams_predictions_run2.csv # HBA predictions on OFAMS data
 │
 ├── pyment/
-│   ├── run_pyment_hcp.sh             # Preprocessing and prediction on HCP data
-│   └── run_pyment_ofams.sh           # Preprocessing and prediction on OFAMS data
+│   ├── run_pyment_hcp.sh              # Preprocessing and prediction on HCP data
+│   └── run_pyment_ofams.sh            # Preprocessing and prediction on OFAMS data
 │
 ├── brainageR/
-│   ├── run_brainageR_hcp.sh          # Preprocessing and prediction on HCP data
-│   └── run_brainageR_ofams.sh        # Preprocessing and prediction on OFAMS data
+│   ├── run_brainageR_hcp.sh           # Preprocessing and prediction on HCP data
+│   └── run_brainageR_ofams.sh         # Preprocessing and prediction on OFAMS data
 │
 ├── HBA/
-│   ├── run_fastsurfer_hcp.sh         # FastSurfer segmentation on HCP data
-│   ├── run_hba_hcp.sh                # HBA prediction on HCP data
-│   └── run_hba_ofams.sh              # HBA prediction on OFAMS data
+│   ├── run_fastsurfer_hcp.sh          # FastSurfer segmentation on HCP data
+│   ├── run_hba_hcp.sh                 # HBA prediction on HCP data
+│   └── run_hba_ofams.sh               # HBA prediction on OFAMS data
 │
-├── requirements.txt                  # Python dependencies
+├── requirements.txt                   # Python dependencies
 └── README.md
-
 ```
-
 
 ---
 
