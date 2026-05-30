@@ -43,7 +43,7 @@ brain-age-ms/
 │   ├── pyment_predictions_run2.csv    # Pyment predictions on OFAMS data
 │   ├── brainageR_hcp.csv              # BrainageR predictions on HCP data
 │   ├── brainageR_predictions_run2.csv # BrainageR predictions on OFAMS data
-│   ├── hba_hcp.csv                    # HBA predictions on HCP data
+│   ├── hba_hcp_wo_age.csv             # HBA predictions on HCP data
 │   └── hba_ofams_predictions_run2.csv # HBA predictions on OFAMS data
 │
 ├── pyment/
